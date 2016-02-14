@@ -1,24 +1,16 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/url"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/appc/abd/schema"
+	"github.com/appc/abd/abd"
 )
 
 const (
-	defaultConfigDir = "/usr/lib/abd/sources.list.d/"
-
 	exampleLocalStrategyConfiguration = `
 	{
 		"prefix": "*",
@@ -29,8 +21,9 @@ const (
 )
 
 var (
-	configDir = defaultConfigDir
-	abdCmd    = &cobra.Command{
+	configDir   = abd.DefaultConfigDir
+	strategyDir = abd.DefaultStrategyDir
+	abdCmd      = &cobra.Command{
 		Use:   "abd",
 		Short: "abd - the appc Binary Discovery",
 		Long:  `abd is a framework for resolving human-readable strings to downloadable URIs`,
@@ -58,6 +51,7 @@ var (
 
 func init() {
 	abdCmd.PersistentFlags().StringVarP(&configDir, "config-dir", "", "", "configuration directory for abd")
+	abdCmd.PersistentFlags().StringVarP(&strategyDir, "strategy-dir", "", "", "strategy directory for abd")
 	abdCmd.AddCommand(discoverCmd, mirrorsCmd, fetchCmd)
 }
 
@@ -65,106 +59,21 @@ func main() {
 	abdCmd.Execute()
 }
 
+// abd discover identifier,label1=value1,label2=value2,...
 func discoverFunc(cmd *cobra.Command, args []string) {
-	// abd discover identifier,label1=value1,label2=value2,...
-	if len(args) < 1 {
+	if len(args) != 1 || args[0] == "" {
 		fmt.Println("no identifier given")
 		os.Exit(1)
 	}
-
-	// TODO(jonboulle): define proper string -> identifier/labels parser
-	parts := strings.SplitN(args[0], ",", 2)
-	identifier := parts[0]
-	if identifier == "" {
-		fmt.Println("no identifier given")
-		os.Exit(1)
-	}
-	// TODO(jonboulle): define proper arg interface for plugins for labels
-	// for now, just label1=value1 label2=value2, etc
-	var lbls []string
-	if len(parts) > 1 {
-		v, err := url.ParseQuery(strings.Replace(parts[1], ",", "&", -1))
-		if err != nil {
-			fmt.Println("error parsing labels:", err.Error())
-			os.Exit(1)
-		}
-		for key, val := range v {
-			if len(val) > 1 {
-				fmt.Println("label with multiple values:", key)
-				os.Exit(1)
-			}
-			lbls = append(lbls, fmt.Sprintf("%s=%s", key, val[0]))
-		}
-	}
-
-	cfgs, err := getConfigs()
+	metadata, err := abd.Discover(args[0], configDir, strategyDir)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Printf("%v\n", err)
 		os.Exit(1)
 	}
-	c := cfgs[0]
-
-	// prefix matching the config
-	if !strings.HasPrefix(identifier, c.Prefix) &&
-		c.Prefix != "*" {
-		fmt.Println("no matching prefix found")
-		os.Exit(1)
-	}
-
-	// dumb: just look for executable with same name as strategy
-	path, err := exec.LookPath(c.Strategy)
+	formattedMetadata, err := json.MarshalIndent(metadata, "", "    ")
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Printf("%v\n", err)
 		os.Exit(1)
 	}
-	cfg, err := json.Marshal(c)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	run := exec.Cmd{
-		Path:  path,
-		Args:  append([]string{identifier}, lbls...),
-		Stdin: bytes.NewBuffer(cfg),
-	}
-	out, err := run.CombinedOutput()
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	fmt.Println(string(out))
-}
-
-// getConfigs will loop through the config directory and return the parsed
-// version of all of the configs.
-func getConfigs() ([]schema.ABDMetadataFetchStrategyConfiguration, error) {
-	fi, err := ioutil.ReadDir(configDir)
-	if err != nil {
-		return nil, err
-	}
-
-	cfgs := make([]schema.ABDMetadataFetchStrategyConfiguration, len(fi))
-
-	for i := range fi {
-		f, err := os.Open(filepath.Join(configDir, fi[i].Name()))
-		if err != nil {
-			return nil, err
-		}
-
-		b, err := ioutil.ReadAll(f)
-		if err != nil {
-			return nil, err
-		}
-		f.Close()
-
-		var c schema.ABDMetadataFetchStrategyConfiguration
-		err = json.Unmarshal(b, &c)
-		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(1)
-		}
-		cfgs[i] = c
-	}
-
-	return cfgs, nil
+	fmt.Println(string(formattedMetadata))
 }

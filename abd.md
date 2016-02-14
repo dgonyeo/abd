@@ -291,10 +291,8 @@ The configuration format is loosely inspired by Debian apt repositories'
 [sources.list configuration][apt-sources-list]. 
 - Lexically-ordered configuration files, each containing a single strategy
   configuration
-- Given an identifier, all strategies with prefixes that match that identifier
-  are tried in order
-- Try both metadata retrieval AND artifact retrieval for each strategy before
-  moving on to the next
+- Given an identifier, the first strategy with a prefix that matches that
+  identifier is used
 - Each configuration has two fields prescribed by abd: `prefix` and `strategy`
 - All other fields defined in the configuration are passed unaltered to the
   strategy

@@ -30,6 +30,6 @@ fi
 echo "Building abd..."
 go build -o ${GOBIN}/abd ${REPO_PATH}
 
-for STRATEGY in io.abd.https-dns io.abd.local io.abd.nfs io.abd.noop; do
-  go build -o ${GOBIN}/${STRATEGY} ${REPO_PATH}/strategies/${STRATEGY}
+for strategy in https-dns template noop ; do
+	go build -o bin/strategies/abd/${strategy} ${REPO_PATH}/strategies/${strategy}
 done
