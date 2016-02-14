@@ -8,6 +8,5 @@ Historical design doc is here: https://docs.google.com/document/d/17G4FOroAW0utS
 
 ```
 ./build
-export PATH=$PATH:$PWD/bin
-./bin/abd --config-dir examples/local discover com.example.package
+./bin/abd --config-dir defaultConfigs --strategy-dir bin/strategies discover example.com/package,label1=foo,label2=bar
 ```
